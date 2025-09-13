@@ -14,7 +14,127 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      email_scans: {
+        Row: {
+          content_preview: string | null
+          email_received_at: string
+          id: string
+          is_quarantined: boolean
+          message_id: string
+          monitored_email_id: string
+          recipient_email: string
+          risk_level: string
+          scan_result: string
+          scanned_at: string
+          sender_email: string
+          subject: string
+          threat_details: Json | null
+        }
+        Insert: {
+          content_preview?: string | null
+          email_received_at?: string
+          id?: string
+          is_quarantined?: boolean
+          message_id: string
+          monitored_email_id: string
+          recipient_email: string
+          risk_level?: string
+          scan_result?: string
+          scanned_at?: string
+          sender_email: string
+          subject: string
+          threat_details?: Json | null
+        }
+        Update: {
+          content_preview?: string | null
+          email_received_at?: string
+          id?: string
+          is_quarantined?: boolean
+          message_id?: string
+          monitored_email_id?: string
+          recipient_email?: string
+          risk_level?: string
+          scan_result?: string
+          scanned_at?: string
+          sender_email?: string
+          subject?: string
+          threat_details?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_scans_monitored_email_id_fkey"
+            columns: ["monitored_email_id"]
+            isOneToOne: false
+            referencedRelation: "monitored_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitored_emails: {
+        Row: {
+          created_at: string
+          email_address: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_address: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_address?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quarantined_emails: {
+        Row: {
+          email_scan_id: string
+          id: string
+          quarantine_reason: string
+          quarantined_at: string
+          released_at: string | null
+          released_by: string | null
+          status: string
+        }
+        Insert: {
+          email_scan_id: string
+          id?: string
+          quarantine_reason: string
+          quarantined_at?: string
+          released_at?: string | null
+          released_by?: string | null
+          status?: string
+        }
+        Update: {
+          email_scan_id?: string
+          id?: string
+          quarantine_reason?: string
+          quarantined_at?: string
+          released_at?: string | null
+          released_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quarantined_emails_email_scan_id_fkey"
+            columns: ["email_scan_id"]
+            isOneToOne: false
+            referencedRelation: "email_scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

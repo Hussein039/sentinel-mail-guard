@@ -5,113 +5,83 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, Mail, AlertTriangle, CheckCircle, Clock, Eye, X, RotateCcw } from 'lucide-react';
+import { Shield, Mail, AlertTriangle, CheckCircle, Clock, User, LogOut, X, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { useEmailMonitoring } from '@/hooks/useEmailMonitoring';
+import { formatDistanceToNow } from 'date-fns';
 
-interface MonitoredEmail {
-  id: string;
-  email: string;
-  status: 'active' | 'inactive';
-  threatsDetected: number;
-  lastChecked: string;
-}
-
-interface QuarantinedEmail {
-  id: string;
-  from: string;
-  to: string;
-  subject: string;
-  threatType: 'spam' | 'phishing' | 'malware' | 'suspicious';
-  receivedAt: string;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-}
 
 const EmailSecurityDashboard = () => {
   const [emailToMonitor, setEmailToMonitor] = useState('');
-  const [monitoredEmails, setMonitoredEmails] = useState<MonitoredEmail[]>([
-    {
-      id: '1',
-      email: 'john.doe@company.com',
-      status: 'active',
-      threatsDetected: 3,
-      lastChecked: '2 minutes ago'
-    },
-    {
-      id: '2',
-      email: 'admin@website.org',
-      status: 'active',
-      threatsDetected: 0,
-      lastChecked: '5 minutes ago'
-    }
-  ]);
-
-  const [quarantinedEmails, setQuarantinedEmails] = useState<QuarantinedEmail[]>([
-    {
-      id: '1',
-      from: 'suspicious@fake-bank.com',
-      to: 'john.doe@company.com',
-      subject: 'URGENT: Verify your account now!',
-      threatType: 'phishing',
-      receivedAt: '10 minutes ago',
-      riskLevel: 'critical'
-    },
-    {
-      id: '2',
-      from: 'noreply@lottery-winner.net',
-      to: 'john.doe@company.com',
-      subject: 'Congratulations! You won $1,000,000',
-      threatType: 'spam',
-      receivedAt: '1 hour ago',
-      riskLevel: 'medium'
-    },
-    {
-      id: '3',
-      from: 'admin@bank-security.fake',
-      to: 'admin@website.org',
-      subject: 'Security Alert - Click here immediately',
-      threatType: 'malware',
-      receivedAt: '2 hours ago',
-      riskLevel: 'high'
-    }
-  ]);
-
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { user, signOut } = useAuth();
+  const { 
+    monitoredEmails, 
+    emailScans, 
+    quarantinedEmails, 
+    loading, 
+    addEmailToMonitor, 
+    releaseQuarantinedEmail, 
+    deleteQuarantinedEmail 
+  } = useEmailMonitoring();
   const { toast } = useToast();
 
-  const handleAddEmail = () => {
+  const handleAddEmail = async () => {
     if (!emailToMonitor.trim()) return;
     
-    const newEmail: MonitoredEmail = {
-      id: Date.now().toString(),
-      email: emailToMonitor,
-      status: 'active',
-      threatsDetected: 0,
-      lastChecked: 'Just now'
-    };
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     
-    setMonitoredEmails([...monitoredEmails, newEmail]);
-    setEmailToMonitor('');
-    toast({
-      title: "Email Added",
-      description: `Now monitoring ${emailToMonitor} for threats`,
-    });
+    try {
+      await addEmailToMonitor(emailToMonitor);
+      setEmailToMonitor('');
+      toast({
+        title: "Email Added",
+        description: `Now monitoring ${emailToMonitor} for threats`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add email for monitoring",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleReleaseEmail = (emailId: string) => {
-    const email = quarantinedEmails.find(e => e.id === emailId);
-    setQuarantinedEmails(quarantinedEmails.filter(e => e.id !== emailId));
-    toast({
-      title: "Email Released",
-      description: `Email from ${email?.from} has been released to inbox`,
-    });
+  const handleReleaseEmail = async (emailId: string) => {
+    try {
+      await releaseQuarantinedEmail(emailId);
+      toast({
+        title: "Email Released",
+        description: "Email has been released from quarantine",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to release email",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteQuarantined = (emailId: string) => {
-    const email = quarantinedEmails.find(e => e.id === emailId);
-    setQuarantinedEmails(quarantinedEmails.filter(e => e.id !== emailId));
-    toast({
-      title: "Email Deleted",
-      description: `Threat email from ${email?.from} has been permanently deleted`,
-    });
+  const handleDeleteQuarantined = async (emailId: string) => {
+    try {
+      await deleteQuarantinedEmail(emailId);
+      toast({
+        title: "Email Deleted",
+        description: "Threat email has been permanently deleted",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete email",
+        variant: "destructive",
+      });
+    }
   };
 
   const getThreatBadgeVariant = (threatType: string) => {
@@ -134,6 +104,22 @@ const EmailSecurityDashboard = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sign out",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -146,6 +132,24 @@ const EmailSecurityDashboard = () => {
               <p className="text-muted-foreground">Monitor and protect your email communications</p>
             </div>
           </div>
+          
+          {user && (
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">{user.email}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-muted-foreground"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Sign Out
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -239,31 +243,54 @@ const EmailSecurityDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {monitoredEmails.map((email) => (
-                    <div key={email.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className={`h-3 w-3 rounded-full ${email.status === 'active' ? 'bg-secure' : 'bg-muted'}`} />
-                        <div>
-                          <p className="font-medium text-foreground">{email.email}</p>
-                          <p className="text-sm text-muted-foreground">Last checked: {email.lastChecked}</p>
+                  {!user ? (
+                    <div className="text-center py-8">
+                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">Authentication Required</p>
+                      <p className="text-muted-foreground mb-4">Sign in to start monitoring your emails</p>
+                      <Button onClick={() => setShowAuthModal(true)}>
+                        Sign In / Sign Up
+                      </Button>
+                    </div>
+                  ) : loading ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Loading monitored emails...</p>
+                    </div>
+                  ) : monitoredEmails.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">No emails being monitored</p>
+                      <p className="text-muted-foreground">Add an email address above to start monitoring</p>
+                    </div>
+                  ) : (
+                    monitoredEmails.map((email) => (
+                      <div key={email.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`h-3 w-3 rounded-full ${email.status === 'active' ? 'bg-secure' : 'bg-muted'}`} />
+                          <div>
+                            <p className="font-medium text-foreground">{email.email_address}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Last checked: {email.lastScan ? formatDistanceToNow(new Date(email.lastScan), { addSuffix: true }) : 'Never'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          {(email.threatCount || 0) > 0 ? (
+                            <Badge variant="outline" className="text-threat border-threat">
+                              {email.threatCount} threats
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-secure border-secure">
+                              Clean
+                            </Badge>
+                          )}
+                          <Badge variant={email.status === 'active' ? 'default' : 'secondary'}>
+                            {email.status}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        {email.threatsDetected > 0 ? (
-                          <Badge variant="outline" className="text-threat border-threat">
-                            {email.threatsDetected} threats
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-secure border-secure">
-                            Clean
-                          </Badge>
-                        )}
-                        <Badge variant={email.status === 'active' ? 'default' : 'secondary'}>
-                          {email.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -279,57 +306,78 @@ const EmailSecurityDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {quarantinedEmails.map((email) => (
-                    <div key={email.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="outline" className={`text-${getThreatBadgeVariant(email.threatType)} border-${getThreatBadgeVariant(email.threatType)}`}>
-                              {email.threatType}
-                            </Badge>
-                            <Badge variant="outline" className={`text-${getRiskBadgeVariant(email.riskLevel)} border-${getRiskBadgeVariant(email.riskLevel)}`}>
-                              {email.riskLevel} risk
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="font-medium text-foreground">{email.subject}</p>
-                            <p className="text-sm text-muted-foreground">
-                              From: {email.from} → To: {email.to}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Received: {email.receivedAt}</p>
-                          </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleReleaseEmail(email.id)}
-                            className="text-secure border-secure hover:bg-secure hover:text-secure-foreground"
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Release
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteQuarantined(email.id)}
-                            className="text-threat border-threat hover:bg-threat hover:text-threat-foreground"
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
+                  {!user ? (
+                    <div className="text-center py-8">
+                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">Authentication Required</p>
+                      <p className="text-muted-foreground mb-4">Sign in to view quarantined emails</p>
+                      <Button onClick={() => setShowAuthModal(true)}>
+                        Sign In / Sign Up
+                      </Button>
                     </div>
-                  ))}
-                  
-                  {quarantinedEmails.length === 0 && (
+                  ) : loading ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Loading quarantined emails...</p>
+                    </div>
+                  ) : quarantinedEmails.length === 0 ? (
                     <div className="text-center py-8">
                       <CheckCircle className="h-12 w-12 text-secure mx-auto mb-4" />
                       <p className="text-lg font-medium text-foreground">No quarantined emails</p>
                       <p className="text-muted-foreground">All your monitored emails are clean!</p>
                     </div>
+                  ) : (
+                    quarantinedEmails.map((email) => (
+                      <div key={email.id} className="border border-border rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline" className={`text-${getThreatBadgeVariant(email.scan_result)} border-${getThreatBadgeVariant(email.scan_result)}`}>
+                                {email.scan_result}
+                              </Badge>
+                              <Badge variant="outline" className={`text-${getRiskBadgeVariant(email.risk_level)} border-${getRiskBadgeVariant(email.risk_level)}`}>
+                                {email.risk_level} risk
+                              </Badge>
+                            </div>
+                            <div>
+                              <p className="font-medium text-foreground">{email.subject}</p>
+                              <p className="text-sm text-muted-foreground">
+                                From: {email.sender_email} → To: {email.recipient_email}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Received: {formatDistanceToNow(new Date(email.email_received_at), { addSuffix: true })}
+                              </p>
+                              {email.content_preview && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">
+                                  "{email.content_preview.slice(0, 100)}..."
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReleaseEmail(email.id)}
+                              className="text-secure border-secure hover:bg-secure hover:text-secure-foreground"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-1" />
+                              Release
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteQuarantined(email.id)}
+                              className="text-threat border-threat hover:bg-threat hover:text-threat-foreground"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
                   )}
+                  
                 </div>
               </CardContent>
             </Card>
@@ -374,6 +422,11 @@ const EmailSecurityDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
+        
+        <AuthModal 
+          isOpen={showAuthModal} 
+          onClose={() => setShowAuthModal(false)} 
+        />
       </div>
     </div>
   );
