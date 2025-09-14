@@ -166,6 +166,20 @@ export function useEmailMonitoring() {
     await fetchEmailScans();
   };
 
+  // Quarantine email
+  const quarantineEmail = async (scanId: string) => {
+    if (!user) throw new Error('User not authenticated');
+
+    const { error } = await supabase
+      .from('email_scans')
+      .update({ is_quarantined: true })
+      .eq('id', scanId);
+
+    if (error) throw error;
+
+    await fetchEmailScans();
+  };
+
   useEffect(() => {
     if (user) {
       fetchMonitoredEmails();
@@ -225,6 +239,7 @@ export function useEmailMonitoring() {
     addEmailToMonitor,
     releaseQuarantinedEmail,
     deleteQuarantinedEmail,
+    quarantineEmail,
     refetch: () => {
       fetchMonitoredEmails();
       fetchEmailScans();

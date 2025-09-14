@@ -24,7 +24,8 @@ const EmailSecurityDashboard = () => {
     loading, 
     addEmailToMonitor, 
     releaseQuarantinedEmail, 
-    deleteQuarantinedEmail 
+    deleteQuarantinedEmail,
+    quarantineEmail 
   } = useEmailMonitoring();
   const { toast } = useToast();
 
@@ -79,6 +80,22 @@ const EmailSecurityDashboard = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to delete email",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleQuarantineEmail = async (emailId: string) => {
+    try {
+      await quarantineEmail(emailId);
+      toast({
+        title: "Email Quarantined",
+        description: "Email has been moved to quarantine",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to quarantine email",
         variant: "destructive",
       });
     }
@@ -201,8 +218,10 @@ const EmailSecurityDashboard = () => {
 
         {/* Main Content */}
         <Tabs defaultValue="monitor" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="monitor">Email Monitoring</TabsTrigger>
+            <TabsTrigger value="incoming">Incoming ({emailScans.filter(email => !monitoredEmails.some(monitored => monitored.email_address === email.sender_email)).length})</TabsTrigger>
+            <TabsTrigger value="outgoing">Outgoing ({emailScans.filter(email => monitoredEmails.some(monitored => monitored.email_address === email.sender_email)).length})</TabsTrigger>
             <TabsTrigger value="quarantine">Quarantine ({quarantinedEmails.length})</TabsTrigger>
             <TabsTrigger value="settings">Security Settings</TabsTrigger>
           </TabsList>
@@ -290,6 +309,178 @@ const EmailSecurityDashboard = () => {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="incoming" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Incoming Emails</CardTitle>
+                <CardDescription>
+                  All incoming emails to your monitored addresses
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {!user ? (
+                    <div className="text-center py-8">
+                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">Authentication Required</p>
+                      <p className="text-muted-foreground mb-4">Sign in to view incoming emails</p>
+                      <Button onClick={() => setShowAuthModal(true)}>
+                        Sign In / Sign Up
+                      </Button>
+                    </div>
+                  ) : loading ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Loading incoming emails...</p>
+                    </div>
+                  ) : emailScans.filter(email => !monitoredEmails.some(monitored => monitored.email_address === email.sender_email)).length === 0 ? (
+                    <div className="text-center py-8">
+                      <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">No incoming emails</p>
+                      <p className="text-muted-foreground">No incoming emails found for monitored addresses</p>
+                    </div>
+                  ) : (
+                    emailScans
+                      .filter(email => !monitoredEmails.some(monitored => monitored.email_address === email.sender_email))
+                      .map((email) => (
+                        <div key={email.id} className="border border-border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className={`text-${getThreatBadgeVariant(email.scan_result)} border-${getThreatBadgeVariant(email.scan_result)}`}>
+                                  {email.scan_result}
+                                </Badge>
+                                <Badge variant="outline" className={`text-${getRiskBadgeVariant(email.risk_level)} border-${getRiskBadgeVariant(email.risk_level)}`}>
+                                  {email.risk_level} risk
+                                </Badge>
+                                {email.is_quarantined && (
+                                  <Badge variant="outline" className="text-quarantine border-quarantine">
+                                    Quarantined
+                                  </Badge>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground">{email.subject}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  From: {email.sender_email} → To: {email.recipient_email}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Received: {formatDistanceToNow(new Date(email.email_received_at), { addSuffix: true })}
+                                </p>
+                                {email.content_preview && (
+                                  <p className="text-xs text-muted-foreground mt-1 italic">
+                                    "{email.content_preview.slice(0, 100)}..."
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              {!email.is_quarantined && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleQuarantineEmail(email.id)}
+                                  className="text-quarantine border-quarantine hover:bg-quarantine hover:text-quarantine-foreground"
+                                >
+                                  <AlertTriangle className="h-4 w-4 mr-1" />
+                                  Quarantine
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="outgoing" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Outgoing Emails</CardTitle>
+                <CardDescription>
+                  All outgoing emails from your monitored addresses
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {!user ? (
+                    <div className="text-center py-8">
+                      <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">Authentication Required</p>
+                      <p className="text-muted-foreground mb-4">Sign in to view outgoing emails</p>
+                      <Button onClick={() => setShowAuthModal(true)}>
+                        Sign In / Sign Up
+                      </Button>
+                    </div>
+                  ) : loading ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Loading outgoing emails...</p>
+                    </div>
+                  ) : emailScans.filter(email => monitoredEmails.some(monitored => monitored.email_address === email.sender_email)).length === 0 ? (
+                    <div className="text-center py-8">
+                      <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-lg font-medium text-foreground">No outgoing emails</p>
+                      <p className="text-muted-foreground">No outgoing emails found from monitored addresses</p>
+                    </div>
+                  ) : (
+                    emailScans
+                      .filter(email => monitoredEmails.some(monitored => monitored.email_address === email.sender_email))
+                      .map((email) => (
+                        <div key={email.id} className="border border-border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className={`text-${getThreatBadgeVariant(email.scan_result)} border-${getThreatBadgeVariant(email.scan_result)}`}>
+                                  {email.scan_result}
+                                </Badge>
+                                <Badge variant="outline" className={`text-${getRiskBadgeVariant(email.risk_level)} border-${getRiskBadgeVariant(email.risk_level)}`}>
+                                  {email.risk_level} risk
+                                </Badge>
+                                {email.is_quarantined && (
+                                  <Badge variant="outline" className="text-quarantine border-quarantine">
+                                    Quarantined
+                                  </Badge>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground">{email.subject}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  From: {email.sender_email} → To: {email.recipient_email}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Received: {formatDistanceToNow(new Date(email.email_received_at), { addSuffix: true })}
+                                </p>
+                                {email.content_preview && (
+                                  <p className="text-xs text-muted-foreground mt-1 italic">
+                                    "{email.content_preview.slice(0, 100)}..."
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              {!email.is_quarantined && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleQuarantineEmail(email.id)}
+                                  className="text-quarantine border-quarantine hover:bg-quarantine hover:text-quarantine-foreground"
+                                >
+                                  <AlertTriangle className="h-4 w-4 mr-1" />
+                                  Quarantine
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
                   )}
                 </div>
               </CardContent>
