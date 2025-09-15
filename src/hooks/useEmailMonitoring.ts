@@ -64,7 +64,7 @@ export function useEmailMonitoring() {
           .eq('monitored_email_id', email.id)
           .order('scanned_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         return {
           id: email.id,

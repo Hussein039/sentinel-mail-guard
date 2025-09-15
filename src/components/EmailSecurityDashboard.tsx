@@ -25,7 +25,8 @@ const EmailSecurityDashboard = () => {
     addEmailToMonitor, 
     releaseQuarantinedEmail, 
     deleteQuarantinedEmail,
-    quarantineEmail 
+    quarantineEmail,
+    simulateEmails 
   } = useEmailMonitoring();
   const { toast } = useToast();
 
@@ -306,6 +307,19 @@ const EmailSecurityDashboard = () => {
                           <Badge variant={email.status === 'active' ? 'default' : 'secondary'}>
                             {email.status}
                           </Badge>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              simulateEmails(email.email_address);
+                              toast({
+                                title: "Simulating emails...",
+                                description: "Generating sample emails for demonstration",
+                              });
+                            }}
+                          >
+                            Simulate Emails
+                          </Button>
                         </div>
                       </div>
                     ))
