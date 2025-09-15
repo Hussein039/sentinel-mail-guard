@@ -118,7 +118,7 @@ export function useEmailMonitoring() {
     setQuarantinedEmails(typedData.filter(scan => scan.is_quarantined));
   };
 
-  // Add email to monitoring
+  // Add email to monitoring and simulate emails
   const addEmailToMonitor = async (emailAddress: string) => {
     if (!user) throw new Error('User not authenticated');
 
@@ -134,7 +134,25 @@ export function useEmailMonitoring() {
 
     if (error) throw error;
 
+    // Simulate email monitoring for demo purposes
+    try {
+      const { data: functionData, error: functionError } = await supabase.functions.invoke('email-monitor', {
+        body: {
+          action: 'simulate',
+          emailAddress,
+          userId: user.id
+        }
+      });
+
+      if (functionError) {
+        console.error('Error simulating emails:', functionError);
+      }
+    } catch (error) {
+      console.error('Error calling email monitor function:', error);
+    }
+
     await fetchMonitoredEmails();
+    await fetchEmailScans();
     return data;
   };
 
@@ -243,6 +261,28 @@ export function useEmailMonitoring() {
     refetch: () => {
       fetchMonitoredEmails();
       fetchEmailScans();
+    },
+    simulateEmails: async (emailAddress: string) => {
+      if (!user) throw new Error('User not authenticated');
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('email-monitor', {
+          body: {
+            action: 'simulate',
+            emailAddress,
+            userId: user.id
+          }
+        });
+
+        if (error) throw error;
+        
+        await fetchEmailScans();
+        await fetchMonitoredEmails();
+        return data;
+      } catch (error) {
+        console.error('Error simulating emails:', error);
+        throw error;
+      }
     }
   };
 }
